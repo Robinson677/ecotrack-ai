@@ -1,5 +1,8 @@
-import { generateText, gateway, Output } from 'ai'
+import { generateText, Output } from 'ai'
+import { createGroq } from '@ai-sdk/groq'
 import { z } from 'zod'
+
+const groq = createGroq({ apiKey: process.env.GROQ_API_KEY })
 
 const extractionSchema = z.object({
   km_recorridos: z.number().min(0),
@@ -18,7 +21,7 @@ export async function POST(request: Request) {
     }
 
     const { output } = await generateText({
-      model: gateway('meta/llama-3.1-8b'),
+      model: groq('llama-3.1-8b-instant'),
       temperature: 0,
       output: Output.object({ schema: extractionSchema }),
       system: `Eres un extractor de datos para EcoTrack AI. Extrae únicamente datos explícitos del texto del usuario. No calcules emisiones, no supongas datos y no conviertas unidades que no estén claras. Si no se menciona una cantidad, usa 0. Si no se menciona transporte, usa null. km_recorridos debe ser la suma de kilómetros explícitamente mencionados. kwh_electricidad debe ser la suma de kWh explícitamente mencionados. tipo_transporte debe ser una descripción breve como coche, furgoneta, tren o avión. El resumen debe describir solo la actividad mencionada, en español.`,
