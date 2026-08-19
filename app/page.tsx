@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { ArrowRight, BarChart3, Check, Leaf, Lightbulb, Menu, Recycle, Sparkles, Truck, X, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { simulateAnalysis, type AnalysisResult } from '@/lib/eco-analysis'
+import { calculateAnalysis, type AnalysisResult } from '@/lib/eco-analysis'
 
 const exampleText = 'Enviamos 50 paquetes por paquetería nacional y usamos cajas de cartón reciclado.'
 
@@ -11,16 +11,24 @@ export default function Home() {
   const [activity, setActivity] = useState('')
   const [result, setResult] = useState<AnalysisResult | null>(null)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [error, setError] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
 
-  const analyzeActivity = () => {
+  const analyzeActivity = async () => {
     if (!activity.trim() || isAnalyzing) return
     setResult(null)
+    setError('')
     setIsAnalyzing(true)
-    window.setTimeout(() => {
-      setResult(simulateAnalysis(activity))
+    try {
+      const response = await fetch('/api/analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ activity }) })
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload.error)
+      setResult(calculateAnalysis(payload.data))
+    } catch (analysisError) {
+      setError(analysisError instanceof Error ? analysisError.message : 'No pudimos analizar la actividad. Inténtalo de nuevo.')
+    } finally {
       setIsAnalyzing(false)
-    }, 900)
+    }
   }
 
   const resetAnalysis = () => {
@@ -46,8 +54,9 @@ export default function Home() {
 
         <div className="mx-auto mt-12 max-w-4xl rounded-3xl border border-border bg-card p-5 shadow-[0_20px_60px_-30px_rgba(25,70,45,0.22)] sm:p-8"><div className="flex items-center justify-between gap-4"><div><p className="font-semibold">Cuéntame sobre tu actividad</p><p className="mt-1 text-sm text-muted-foreground">Describe cualquier actividad de tu negocio y calcularemos su impacto.</p></div><div className="hidden rounded-xl bg-primary/10 p-3 text-primary sm:block"><BarChart3 className="size-5" /></div></div><textarea id="actividad" value={activity} onChange={(e) => setActivity(e.target.value)} placeholder="Ej. Viajé 200 km en coche para visitar a un cliente..." className="mt-6 min-h-36 w-full resize-none rounded-2xl border border-input bg-background p-4 text-sm leading-6 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10" aria-label="Describe tu actividad" disabled={isAnalyzing} /><div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><button onClick={() => setActivity(exampleText)} disabled={isAnalyzing} className="flex items-center gap-2 text-left text-xs text-muted-foreground transition hover:text-foreground disabled:opacity-50"><Lightbulb className="size-4 text-primary" /> Prueba con un ejemplo</button><Button onClick={analyzeActivity} disabled={!activity.trim() || isAnalyzing} className="rounded-xl bg-primary px-6 text-primary-foreground hover:bg-primary/90">{isAnalyzing ? <><span className="mr-2 size-4 animate-spin rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground" /> Analizando actividad...</> : <>Analizar impacto <ArrowRight className="ml-2 size-4" /></>}</Button></div></div>
 
-        {!result && !isAnalyzing && <div className="mx-auto mt-8 max-w-4xl rounded-3xl border border-dashed border-border bg-card/50 px-6 py-10 text-center"><BarChart3 className="mx-auto size-7 text-primary/70" /><p className="mt-3 font-semibold">Tu análisis aparecerá aquí</p><p className="mx-auto mt-1 max-w-md text-sm leading-6 text-muted-foreground">Describe una actividad de tu negocio y presiona “Analizar impacto” para comenzar.</p></div>}
-        {isAnalyzing && <div className="mx-auto mt-8 max-w-4xl rounded-3xl border border-primary/15 bg-primary/5 px-6 py-10 text-center" aria-live="polite"><span className="mx-auto flex size-8 animate-spin rounded-full border-2 border-primary/20 border-t-primary" /><p className="mt-4 font-semibold">EcoTrack AI está analizando tu actividad</p><p className="mt-1 text-sm text-muted-foreground">Estamos preparando una estimación simulada.</p></div>}
+        {error && <div className="mx-auto mt-8 max-w-4xl rounded-2xl border border-destructive/25 bg-destructive/5 px-5 py-4 text-sm text-destructive" role="alert">{error}</div>}
+        {!result && !isAnalyzing && !error && <div className="mx-auto mt-8 max-w-4xl rounded-3xl border border-dashed border-border bg-card/50 px-6 py-10 text-center"><BarChart3 className="mx-auto size-7 text-primary/70" /><p className="mt-3 font-semibold">Tu análisis aparecerá aquí</p><p className="mx-auto mt-1 max-w-md text-sm leading-6 text-muted-foreground">Describe una actividad de tu negocio y presiona “Analizar impacto” para comenzar.</p></div>}
+        {isAnalyzing && <div className="mx-auto mt-8 max-w-4xl rounded-3xl border border-primary/15 bg-primary/5 px-6 py-10 text-center" aria-live="polite"><span className="mx-auto flex size-8 animate-spin rounded-full border-2 border-primary/20 border-t-primary" /><p className="mt-4 font-semibold">EcoTrack AI está analizando tu actividad</p><p className="mt-1 text-sm text-muted-foreground">Estamos extrayendo los datos explícitos de tu actividad.</p></div>}
         {result && <Results result={result} onReset={resetAnalysis} />}
       </section>
 
@@ -57,6 +66,6 @@ export default function Home() {
   )
 }
 
-function Results({ result, onReset }: { result: AnalysisResult; onReset: () => void }) { return <section aria-live="polite" className="mx-auto mt-8 max-w-4xl rounded-3xl border border-primary/20 bg-primary/5 p-5 sm:p-8"><div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between"><div><p className="text-sm font-semibold text-primary">Análisis completado</p><h2 className="mt-2 text-2xl font-semibold tracking-tight">Tu actividad genera aproximadamente</h2></div><span className="flex items-center gap-2 rounded-full bg-card px-3 py-2 text-xs font-medium text-muted-foreground"><Check className="size-3.5 text-primary" /> Estimación simulada</span></div><div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5"><ResultCard icon={<BarChart3 />} value={result.footprint} label="Huella de carbono" /><ResultCard icon={<Truck />} value={result.transport} label="Emisiones transporte" /><ResultCard icon={<Zap />} value={result.electricity} label="Emisiones electricidad" /><ResultCard icon={<Recycle />} value={result.recycled} label="Material reciclado" /><ResultCard icon={<Leaf />} value={result.impact} label="Nivel de impacto" /></div><div className="mt-6 flex gap-3 rounded-2xl border border-primary/15 bg-card p-4"><Lightbulb className="mt-0.5 size-5 shrink-0 text-primary" /><div><p className="text-sm font-semibold">Recomendación para tu negocio</p><p className="mt-1 text-sm leading-6 text-muted-foreground">{result.recommendation}</p></div></div><button onClick={onReset} className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-primary transition hover:text-primary/80">Analizar otra actividad <ArrowRight className="size-4" /></button></section> }
+function Results({ result, onReset }: { result: AnalysisResult; onReset: () => void }) { return <section aria-live="polite" className="mx-auto mt-8 max-w-4xl rounded-3xl border border-primary/20 bg-primary/5 p-5 sm:p-8"><div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between"><div><p className="text-sm font-semibold text-primary">Análisis completado</p><h2 className="mt-2 text-2xl font-semibold tracking-tight">Tu actividad genera aproximadamente</h2></div><span className="flex items-center gap-2 rounded-full bg-card px-3 py-2 text-xs font-medium text-muted-foreground"><Check className="size-3.5 text-primary" /> Análisis con IA</span></div><div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5"><ResultCard icon={<BarChart3 />} value={result.footprint} label="Huella de carbono" /><ResultCard icon={<Truck />} value={result.transport} label="Emisiones transporte" /><ResultCard icon={<Zap />} value={result.electricity} label="Emisiones electricidad" /><ResultCard icon={<Recycle />} value={result.recycled} label="Material reciclado" /><ResultCard icon={<Leaf />} value={result.impact} label="Nivel de impacto" /></div><div className="mt-6 flex gap-3 rounded-2xl border border-primary/15 bg-card p-4"><Lightbulb className="mt-0.5 size-5 shrink-0 text-primary" /><div><p className="text-sm font-semibold">Recomendación para tu negocio</p><p className="mt-1 text-sm leading-6 text-muted-foreground">{result.recommendation}</p></div></div><button onClick={onReset} className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-primary transition hover:text-primary/80">Analizar otra actividad <ArrowRight className="size-4" /></button></section> }
 function ResultCard({ icon, value, label }: { icon: React.ReactNode; value: string; label: string }) { return <div className="rounded-2xl border border-border bg-card p-4"><div className="flex items-center gap-2 text-primary"><span className="[&>svg]:size-4">{icon}</span><span className="text-xs font-medium leading-4 text-muted-foreground">{label}</span></div><p className="mt-3 text-2xl font-semibold tracking-tight">{value}</p></div> }
 function Step({ number, icon, title, text }: { number: string; icon: React.ReactNode; title: string; text: string }) { return <div className="relative border-t border-border pt-5"><div className="flex items-center justify-between"><span className="font-mono text-xs text-muted-foreground">{number}</span><span className="text-primary [&>svg]:size-5">{icon}</span></div><h3 className="mt-8 text-lg font-semibold">{title}</h3><p className="mt-2 text-sm leading-6 text-muted-foreground">{text}</p></div> }

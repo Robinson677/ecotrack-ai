@@ -1,3 +1,10 @@
+export type ExtractedActivity = {
+  km_recorridos: number
+  tipo_transporte: string | null
+  kwh_electricidad: number
+  resumen_actividad: string
+}
+
 export type AnalysisResult = {
   footprint: string
   transport: string
@@ -6,34 +13,33 @@ export type AnalysisResult = {
   impact: 'Bajo' | 'Medio' | 'Alto'
   recommendation: string
   category: 'transport' | 'electricity' | 'recycling' | 'general'
+  summary: string
+  transportType: string | null
 }
 
-export function simulateAnalysis(activity: string): AnalysisResult {
-  const text = activity.toLowerCase()
-  const hasTransport = /transporte|viaj|coche|auto|camion|paqueter|env[ií]o|entrega|kil[oó]metro|km/.test(text)
-  const hasElectricity = /electricidad|eléctric|electric|kwh|energ[ií]a|luz|equipos|consumo/.test(text)
-  const hasRecycling = /recicl|cart[oó]n|material|residuo|pl[aá]stico|papel/.test(text)
+const KG_CO2_PER_KM = 0.12
+const KG_CO2_PER_KWH = 0.4
 
-  if (hasTransport) {
-    return {
-      footprint: '18.6 kg', transport: '14.2 kg', electricity: '2.1 kg', recycled: hasRecycling ? '1.4 kg' : '0.3 kg', impact: 'Medio', category: 'transport',
-      recommendation: 'Considera optimizar las rutas de entrega para reducir desplazamientos innecesarios y consolidar tus envíos semanales.',
-    }
-  }
-  if (hasElectricity) {
-    return {
-      footprint: '16.8 kg', transport: '1.2 kg', electricity: '13.7 kg', recycled: hasRecycling ? '0.9 kg' : '0.2 kg', impact: 'Medio', category: 'electricity',
-      recommendation: 'Revisa los equipos que permanecen encendidos durante periodos sin actividad y considera mejorar su eficiencia energética.',
-    }
-  }
-  if (hasRecycling) {
-    return {
-      footprint: '8.4 kg', transport: '2.8 kg', electricity: '1.7 kg', recycled: '3.2 kg', impact: 'Bajo', category: 'recycling',
-      recommendation: 'Mantén la separación de materiales y busca proveedores que utilicen empaques reciclados o reutilizables.',
-    }
-  }
+export function calculateAnalysis(data: ExtractedActivity): AnalysisResult {
+  const transportKg = data.km_recorridos * KG_CO2_PER_KM
+  const electricityKg = data.kwh_electricidad * KG_CO2_PER_KWH
+  const footprintKg = transportKg + electricityKg
+  const category = transportKg >= electricityKg && transportKg > 0 ? 'transport' : electricityKg > 0 ? 'electricity' : 'general'
+  const impact = footprintKg >= 50 ? 'Alto' : footprintKg >= 15 ? 'Medio' : 'Bajo'
+
   return {
-    footprint: '12.4 kg', transport: '4.8 kg', electricity: '5.1 kg', recycled: '0.8 kg', impact: 'Bajo', category: 'general',
-    recommendation: 'Registra esta actividad con frecuencia para identificar patrones y priorizar las acciones con mayor impacto.',
+    footprint: `${footprintKg.toFixed(1)} kg`,
+    transport: `${transportKg.toFixed(1)} kg`,
+    electricity: `${electricityKg.toFixed(1)} kg`,
+    recycled: '0.0 kg',
+    impact,
+    category,
+    summary: data.resumen_actividad,
+    transportType: data.tipo_transporte,
+    recommendation: category === 'transport'
+      ? 'Considera optimizar las rutas de entrega, consolidar envíos o probar alternativas de menor emisión.'
+      : category === 'electricity'
+        ? 'Revisa los equipos que permanecen encendidos y considera mejorar su eficiencia energética.'
+        : 'Registra más actividades para identificar patrones y priorizar las acciones con mayor impacto.',
   }
 }
