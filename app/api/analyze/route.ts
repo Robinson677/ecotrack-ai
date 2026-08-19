@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     }
 
     const { output } = await generateText({
-      model: groq('llama-3.1-8b-instant'),
+      model: groq('openai/gpt-oss-20b'),
       temperature: 0,
       output: Output.object({ schema: extractionSchema }),
       system: `Eres un extractor de datos para EcoTrack AI. Extrae únicamente datos explícitos del texto del usuario. No calcules emisiones, no supongas datos y no conviertas unidades que no estén claras. Si no se menciona una cantidad, usa 0. Si no se menciona transporte, usa null. km_recorridos debe ser la suma de kilómetros explícitamente mencionados. kwh_electricidad debe ser la suma de kWh explícitamente mencionados. tipo_transporte debe ser una descripción breve como coche, furgoneta, tren o avión. El resumen debe describir solo la actividad mencionada, en español.`,
